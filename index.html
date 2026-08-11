@@ -14,7 +14,7 @@ html::-webkit-scrollbar { display: none; }
 body { font-family: 'Kaph', 'Segoe UI', system-ui, sans-serif; background: var(--dark); color: var(--cream); overflow-x: hidden; }
 
 #video-container { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; background: #0a0a0a; }
-#bg-player { width: 100%; height: 100%; position: absolute; top: 0; left: 0; pointer-events: none; border: none; }
+#bg-player { width: 100%; height: 100%; position: absolute; top: 0; left: 0; pointer-events: none; border: none; object-fit: cover; }
 #vignette { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; box-shadow: inset 0 0 150px 60px rgba(0,0,0,0.5); }
 #grain { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 3; opacity: 0.04; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
 
@@ -440,7 +440,7 @@ body { font-family: 'Kaph', 'Segoe UI', system-ui, sans-serif; background: var(-
 <div id="loader"><div id="loader-title">THE LOOP</div><div id="loader-bar"></div><div id="loader-text">Loading video...</div></div>
 
 <div id="video-container">
-<iframe id="bg-player" title="Background video" referrerpolicy="no-referrer-when-downgrade" allow="autoplay; encrypted-media; picture-in-picture" frameborder="0"></iframe>
+<video id="bg-player" src="https://a2020develop.github.io/the-loop/town-flythrough.mp4" autoplay muted loop playsinline preload="auto"></video>
 </div>
 
 <div id="vignette"></div>
@@ -670,97 +670,36 @@ body { font-family: 'Kaph', 'Segoe UI', system-ui, sans-serif; background: var(-
  * THE LOOP
  * 100% client-side. No Python, server, API backend or build step required.
  *
- * Vimeo Player SDK is used only for the background video. Unlike the old
- * YouTube IFrame API, Vimeo's API is fully async (getCurrentTime() returns
- * a Promise, there is no synchronous getPlayerState()). The 60fps scroll
- * loop below needs a time value it can read instantly every frame, so we
- * keep a small local clock (_vpTime/_vpTimeStamp) that is set from Vimeo's
- * timeupdate/play/pause/seeked events and extrapolated between updates.
+ * The background video is a plain self-hosted <video> element (see
+ * #bg-player in the markup). Native video gives synchronous currentTime /
+ * play() / pause() / playbackRate, so the 60fps scroll loop below can read
+ * and drive it directly, no polling or predicted-clock tricks needed.
  */
 var _appInit = null;
 var player = null;
-var _vpTime = 0;
-var _vpTimeStamp = 0;
-var _vpDuration = 31;
-var _vpPlaying = false;
-var _vpRate = 1;
 
-var VIMEO_VIDEO_ID = '1217309990';
-var VIMEO_VIDEO_HASH = '2ab3f1a30c';
+(function initVideoPlayer() {
+    const video = document.getElementById('bg-player');
+    player = video;
 
-(function loadVimeoAPI() {
-    var tag = document.createElement('script');
-    tag.src = 'https://player.vimeo.com/api/player.js';
-    tag.onload = initVimeoPlayer;
-    tag.onerror = function () {
-        var loaderText = document.getElementById('loader-text');
-        if (loaderText) loaderText.textContent = 'Video failed to load';
-    };
-    var firstScriptTag = document.getElementsByTagName('script')[0];
-    firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
-})();
-
-function initVimeoPlayer() {
-    const iframe = document.getElementById('bg-player');
-
-    const params = new URLSearchParams({
-        h: VIMEO_VIDEO_HASH,
-        autoplay: '1',
-        muted: '1',
-        loop: '1',
-        controls: '0',
-        playsinline: '1',
-        title: '0',
-        byline: '0',
-        portrait: '0'
+    video.addEventListener('loadedmetadata', function () {
+        if (typeof _appInit === 'function') {
+            setTimeout(_appInit, 150);
+        }
     });
 
-    iframe.src = 'https://player.vimeo.com/video/' + VIMEO_VIDEO_ID + '?' + params.toString();
-
-    player = new Vimeo.Player(iframe);
-
-    player.ready().then(function () {
-        return player.getDuration();
-    }).then(function (duration) {
-        if (duration) _vpDuration = duration;
-    }).catch(function (error) {
-        console.warn('Vimeo player did not become ready:', error);
-    });
-
-    player.on('timeupdate', function (data) {
-        _vpTime = data.seconds;
-        _vpTimeStamp = performance.now();
-        if (data.duration) _vpDuration = data.duration;
-    });
-
-    player.on('seeked', function (data) {
-        _vpTime = data.seconds;
-        _vpTimeStamp = performance.now();
-    });
-
-    player.on('play', function () {
-        _vpPlaying = true;
-        _vpTimeStamp = performance.now();
-
-        // If autoplay was blocked, the first user scroll triggers play()
+    video.addEventListener('play', function () {
+        // If autoplay was blocked, the first user scroll calls playVideo()
         // and this is where we actually kick off the app.
         if (typeof _appInit === 'function') _appInit();
     });
 
-    player.on('pause', function () {
-        _vpPlaying = false;
-    });
-
-    player.on('error', function (error) {
+    video.addEventListener('error', function () {
         var loaderText = document.getElementById('loader-text');
-        console.error('Vimeo player error:', error);
+        console.error('Video failed to load:', video.error);
         if (loaderText) loaderText.textContent = 'Video failed to load';
     });
-
-    if (typeof _appInit === 'function') {
-        setTimeout(_appInit, 150);
-    }
-}
+})();
 
 (function () {
     'use strict';
@@ -863,65 +802,45 @@ function initVimeoPlayer() {
     }
 
     function getVideoTime() {
-        if (!player) return 0;
-        let time = _vpTime;
-        if (_vpPlaying) {
-            time += ((performance.now() - _vpTimeStamp) / 1000) * _vpRate;
-        }
-        return time;
+        return player ? player.currentTime : 0;
     }
 
     function getVideoDuration() {
-        return _vpDuration || VIDEO_DURATION;
+        return (player && player.duration) || VIDEO_DURATION;
     }
 
     function setVideoTime(time) {
-        if (!player || !player.setCurrentTime) return;
+        if (!player) return;
         const duration = getVideoDuration() || VIDEO_DURATION;
-        const target = clamp(time, 0, Math.max(0, duration - 0.02));
-
-        // Update the local clock immediately so the 60fps loop() below sees
-        // the new position right away instead of waiting on Vimeo's slower
-        // timeupdate event; the async call just confirms it on the backend.
-        _vpTime = target;
-        _vpTimeStamp = performance.now();
-
-        player.setCurrentTime(target).catch(() => {});
+        player.currentTime = clamp(time, 0, Math.max(0, duration - 0.02));
     }
 
     function playVideo() {
-        if (!player || !player.play) return;
-        _vpPlaying = true;
-        _vpTimeStamp = performance.now();
-        player.play().catch(() => {});
+        if (!player) return;
+        const promise = player.play();
+        if (promise && promise.catch) promise.catch(() => {});
     }
 
     function pauseVideo() {
-        if (!player || !player.pause) return;
-        _vpPlaying = false;
-        player.pause().catch(() => {});
+        if (!player) return;
+        player.pause();
     }
 
     function setPlaybackRate(rate) {
-        if (!player || !player.setPlaybackRate) return;
-
-        // Snapshot the predicted time at the old rate before switching, so
-        // the next getVideoTime() extrapolates from the correct baseline.
-        _vpTime = getVideoTime();
-        _vpTimeStamp = performance.now();
-        _vpRate = rate;
-
-        player.setPlaybackRate(rate).catch((error) => {
+        if (!player) return;
+        try {
+            player.playbackRate = rate;
+        } catch (error) {
             console.warn('Playback-rate change failed:', error);
-        });
+        }
     }
 
     function getPlaybackRate() {
-        return _vpRate;
+        return player ? player.playbackRate : 1;
     }
 
     function isVideoPlaying() {
-        return _vpPlaying;
+        return !!(player && !player.paused && !player.ended);
     }
 
     function clearAnimationTimers() {
