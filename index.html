@@ -1,0 +1,1414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta name="referrer" content="no-referrer-when-downgrade">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Loop</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root { --gold: #C9A84C; --cream: #F5F0E8; --dark: #0D0D0D; }
+@font-face { font-family: 'Kaph'; src: url('Kaph-Regular.woff2') format('woff2'), url('Kaph-Regular.woff') format('woff'); font-weight: 400; font-style: normal; font-display: swap; }
+html { scroll-behavior: smooth; overflow-y: scroll; scrollbar-width: none; }
+html::-webkit-scrollbar { display: none; }
+body { font-family: 'Kaph', 'Segoe UI', system-ui, sans-serif; background: var(--dark); color: var(--cream); overflow-x: hidden; }
+
+#video-container { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; background: #0a0a0a; }
+#yt-player { width: 100%; height: 100%; position: absolute; top: 0; left: 0; pointer-events: none; border: none; }
+#vignette { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; box-shadow: inset 0 0 150px 60px rgba(0,0,0,0.5); }
+#grain { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 3; opacity: 0.04; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+
+#glitch-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 12; opacity: 0; transition: opacity 0.15s ease; overflow: hidden; }
+#glitch-overlay.active { opacity: 1; }
+.glitch-rgb { position: absolute; top: 0; left: 0; width: 100%; height: 100%; mix-blend-mode: screen; animation: rgbShift 0.08s steps(2) infinite; }
+.glitch-rgb::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,0,0,0.08); transform: translateX(-3px); mix-blend-mode: screen; }
+.glitch-rgb::after { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,255,255,0.08); transform: translateX(3px); mix-blend-mode: screen; }
+@keyframes rgbShift { 0% { transform: translate(0,0); } 25% { transform: translate(2px,-1px); } 50% { transform: translate(-2px,1px); } 75% { transform: translate(1px,2px); } 100% { transform: translate(-1px,-2px); } }
+.scan-bars { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.15) 3px, rgba(0,0,0,0.15) 6px, transparent 6px, transparent 12px, rgba(255,255,255,0.06) 12px, rgba(255,255,255,0.06) 13px, transparent 13px, transparent 24px); animation: barFlicker 0.1s steps(2) infinite; }
+@keyframes barFlicker { 0% { transform: translateY(0); opacity: 1; } 50% { transform: translateY(2px); opacity: 0.7; } 100% { transform: translateY(-1px); opacity: 1; } }
+.glitch-flash { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(245,240,232,0.04); animation: flashPop 0.12s steps(2) infinite; mix-blend-mode: overlay; }
+@keyframes flashPop { 0% { opacity: 0; } 50% { opacity: 1; } 100% { opacity: 0; } }
+.noise-static { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0.12; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='ns'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23ns)'/%3E%3C/svg%3E"); animation: noiseJitter 0.06s steps(3) infinite; }
+@keyframes noiseJitter { 0% { transform: translate(0,0) scale(1); } 33% { transform: translate(-1px,1px) scale(1.01); } 66% { transform: translate(1px,-1px) scale(0.99); } 100% { transform: translate(0,0) scale(1); } }
+.tear-line { position: absolute; left: 0; width: 100%; height: 2px; background: rgba(255,255,255,0.15); box-shadow: 0 0 8px rgba(255,255,255,0.2); animation: tearSlide 0.2s linear infinite; }
+.tear-line:nth-child(1) { top: 20%; animation-delay: 0s; animation-duration: 0.25s; }
+.tear-line:nth-child(2) { top: 45%; animation-delay: 0.1s; animation-duration: 0.18s; height: 1px; }
+.tear-line:nth-child(3) { top: 70%; animation-delay: 0.05s; animation-duration: 0.3s; height: 3px; }
+.tear-line:nth-child(4) { top: 85%; animation-delay: 0.15s; animation-duration: 0.22s; height: 1px; }
+@keyframes tearSlide { 0% { transform: translateX(-10%); opacity: 0; } 30% { opacity: 1; } 70% { opacity: 1; } 100% { transform: translateX(110%); opacity: 0; } }
+.glitch-vignette { position: absolute; top: 0; left: 0; width: 100%; height: 100%; box-shadow: inset 0 0 100px 40px rgba(10,30,10,0.036); animation: vignettePulse 0.15s ease-in-out infinite alternate; }
+@keyframes vignettePulse { 0% { box-shadow: inset 0 0 80px 30px rgba(10,30,10,0.03); } 100% { box-shadow: inset 0 0 150px 70px rgba(10,30,10,0.048); } }
+
+#white-flash { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #fff; pointer-events: none; z-index: 50; opacity: 0; transition: none; }
+#white-flash.flash-in { opacity: 1; transition: opacity 0.15s ease-out; }
+#white-flash.flash-out { opacity: 0; transition: opacity 0.35s ease-in; }
+
+#scroll-spacer { position: relative; z-index: 0; }
+.snap-anchor { height: 100vh; position: relative; }
+
+#title-layer {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    max-width: 1920px;
+    margin: 0 auto;
+    z-index: 6; /* video -> title -> story/UI */
+    pointer-events: none;
+    overflow: hidden;
+}
+
+#ui-layer {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    max-width: 1280px;
+    margin: 0 auto;
+    height: 100%;
+    z-index: 10;
+    pointer-events: none;
+}
+
+#section-nav {
+    position: fixed;
+    right: 28px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 25;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    pointer-events: all;
+}
+.nav-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: rgba(245, 240, 232, 0.18);
+    border: 1.5px solid rgba(245, 240, 232, 0.12);
+    cursor: pointer;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+}
+.nav-dot::before {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 0; height: 0;
+    border-radius: 50%;
+    background: var(--gold);
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.nav-dot:hover {
+    background: rgba(245, 240, 232, 0.35);
+    border-color: rgba(245, 240, 232, 0.3);
+    transform: scale(1.3);
+}
+.nav-dot.active {
+    background: transparent;
+    border-color: var(--gold);
+    transform: scale(1.4);
+}
+.nav-dot.active::before { width: 5px; height: 5px; }
+.nav-label {
+    position: absolute;
+    right: 22px; top: 50%;
+    transform: translateY(-50%);
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--cream);
+    opacity: 0;
+    white-space: nowrap;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    pointer-events: none;
+    font-family: 'Kaph', sans-serif;
+}
+.nav-dot:hover .nav-label {
+    opacity: 0.7;
+    transform: translateY(-50%) translateX(-4px);
+}
+@media (max-width: 768px) {
+    #section-nav { right: 14px; gap: 10px; }
+    .nav-dot { width: 8px; height: 8px; }
+    .nav-dot.active::before { width: 4px; height: 4px; }
+    .nav-label { display: none; }
+}
+
+#scroll-hint { position: fixed; bottom: 50px; left: 50%; transform: translateX(-50%); text-align: center; z-index: 20; transition: opacity 0.6s ease; }
+#scroll-hint span { display: block; font-size: 11px; letter-spacing: 4px; text-transform: uppercase; opacity: 0.6; margin-bottom: 12px; font-weight: 400; }
+.mouse-icon { width: 22px; height: 34px; border: 1.5px solid rgba(245, 240, 232, 0.5); border-radius: 11px; margin: 0 auto; position: relative; }
+.mouse-icon::after { content: ''; position: absolute; top: 6px; left: 50%; transform: translateX(-50%); width: 3px; height: 5px; background: rgba(245, 240, 232, 0.7); border-radius: 2px; animation: scrollWheel 1.8s infinite; }
+@keyframes scrollWheel { 0% { top: 6px; opacity: 1; } 100% { top: 16px; opacity: 0; } }
+
+#progress-track { position: fixed; bottom: 25px; left: 50%; transform: translateX(-50%); width: min(280px, 70vw); height: 2px; background: rgba(245, 240, 232, 0.15); border-radius: 1px; z-index: 20; overflow: hidden; }
+#progress-fill { height: 100%; width: 0%; background: var(--gold); border-radius: 1px; transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+
+.title-section {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    min-height: 180px;
+    display: flex;
+    align-items: center;
+    pointer-events: none;
+    padding: 0 4vw;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(30px);
+    transition:
+        opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1),
+        transform 0.8s cubic-bezier(0.4, 0, 0.2, 1),
+        visibility 0s linear 0.8s;
+}
+.title-section.visible {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+    transition:
+        opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1),
+        transform 0.8s cubic-bezier(0.4, 0, 0.2, 1),
+        visibility 0s linear 0s;
+}
+.title-section.visible { opacity: 1; transform: translateY(0); }
+.title-section.left { justify-content: flex-start; }
+.title-section.right { justify-content: flex-end; }
+.title-section.center { justify-content: center; text-align: center; }
+
+.title-content {
+    width: 100%;
+    max-width: 1920px;
+    animation: contentBreathe 6s ease-in-out infinite;
+    animation-play-state: paused;
+}
+.title-section.left .title-content { text-align: left; }
+.title-section.right .title-content { text-align: right; }
+.title-section.visible .title-content {
+    animation-play-state: running;
+}
+.title-section.center .title-content {
+    text-align: center;
+}
+
+.story-title {
+    font-family: 'Kaph', sans-serif;
+    font-size: clamp(4rem, 9.5vw, 10rem);
+    font-weight: 400;
+    line-height: 1.02;
+    letter-spacing: 0.015em;
+    color: var(--gold);
+    filter: drop-shadow(0 4px 30px rgba(0,0,0,0.7));
+    overflow-wrap: normal;
+    word-break: normal;
+    white-space: normal;
+}
+
+/* Title letters are laid out with flexbox. Each character owns its own
+   layout cell, so revealing a letter can NEVER change another letter's
+   position or cause characters to overlap. */
+.story-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: flex-start;
+    column-gap: 0.34em;
+    row-gap: 0.08em;
+    width: 100%;
+    max-width: 100%;
+}
+.title-section.center .story-title { justify-content: center; }
+.title-section.right .story-title { justify-content: flex-end; }
+
+.title-word {
+    display: inline-flex;
+    flex: 0 0 auto;
+    white-space: nowrap;
+    align-items: baseline;
+}
+
+/* The first two words stay bright/white; everything after them is gold. */
+.title-word-white .char { color: var(--cream); }
+.title-word-gold .char { color: var(--gold); }
+
+.story-title .char {
+    display: inline-block;
+    flex: 0 0 auto;
+    position: relative;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    opacity: 0;
+    visibility: hidden;
+    transform: none;
+    vertical-align: baseline;
+    transition: opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+                visibility 0s linear 0.28s;
+}
+
+.story-title .char.space {
+    width: 0;
+    min-width: 0;
+}
+
+.story-title .char.visible {
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+                visibility 0s linear 0s;
+}
+
+
+.story-section {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    min-height: 180px;
+    display: flex;
+    align-items: center;
+    pointer-events: none;
+    padding: 0 5vw;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(30px);
+    transition:
+        opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1),
+        transform 0.8s cubic-bezier(0.4, 0, 0.2, 1),
+        visibility 0s linear 0.8s;
+}
+.story-section.visible {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+    transition:
+        opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1),
+        transform 0.8s cubic-bezier(0.4, 0, 0.2, 1),
+        visibility 0s linear 0s;
+}
+.story-section.left { justify-content: flex-end; }
+.story-section.right { justify-content: flex-start; }
+.story-section.center { justify-content: center; text-align: center; }
+
+.story-content {
+    max-width: 1100px;
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr;
+    align-items: center;
+    gap: 24px;
+    animation: contentBreathe 6s ease-in-out infinite;
+    animation-play-state: paused;
+}
+.story-section.visible .story-content {
+    animation-play-state: running;
+}
+.story-section.center .story-content {
+    text-align: center;
+    justify-items: center;
+    max-width: 720px;
+}
+
+.text-block {
+    max-width: 480px;
+}
+.story-section.right .text-block {
+    text-align: left;
+}
+
+.story-overline {
+    font-family: 'Kaph', sans-serif;
+    font-size: 13px;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 22px;
+    font-weight: 400;
+    opacity: 0;
+    transform: translateX(-20px);
+    transition: opacity 0.6s ease 0.4s, transform 0.6s ease 0.4s;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+.story-overline::before {
+    content: '';
+    width: 6px; height: 6px;
+    background: var(--gold);
+    transform: rotate(45deg);
+    opacity: 0.7;
+    flex-shrink: 0;
+}
+.story-section.center .story-overline {
+    justify-content: center;
+    transform: translateY(12px);
+}
+.story-section.visible .story-overline {
+    opacity: 1;
+    transform: translateX(0);
+}
+.story-section.center.visible .story-overline {
+    transform: translateY(0);
+}
+
+.story-divider {
+    width: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--gold), rgba(201,168,76,0.2));
+    margin: 20px 0;
+    border-radius: 1px;
+    transition: width 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.7s;
+}
+.story-section.center .story-divider {
+    margin: 20px auto;
+}
+.story-section.visible .story-divider {
+    width: 50px;
+}
+.story-section.center.visible .story-divider {
+    width: 60px;
+}
+
+.story-body {
+    font-family: 'Kaph', sans-serif;
+    font-size: clamp(0.9rem, 1.4vw, 1.05rem);
+    line-height: 1.75;
+    color: rgba(255, 252, 245, 1);
+    font-weight: 400;
+    text-shadow: 0 2px 18px rgba(0,0,0,0.92), 0 0 10px rgba(255,255,255,0.16);
+}
+.story-body .word {
+    display: inline-block;
+    opacity: 0;
+    transform: translateY(12px);
+    transition: opacity 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+                transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+    margin-right: 0.28em;
+}
+.story-body .word.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+@keyframes contentBreathe {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-4px); }
+}
+
+#end-section {
+    position: fixed; top: 0; left: 0;
+    width: 100%; height: 100%; z-index: 15;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none;
+    transition: opacity 1s ease;
+    background: rgba(0,0,0,0.5);
+}
+#end-section.visible { opacity: 1; pointer-events: all; }
+.end-content { text-align: center; padding: 50px; max-width: 600px; }
+.end-title { font-family: 'Kaph', sans-serif; font-size: clamp(2.2rem, 5.5vw, 4rem); font-weight: 400; margin-bottom: 16px; text-shadow: 0 4px 40px rgba(0,0,0,0.7); letter-spacing: 2px; }
+.end-subtitle { font-family: 'Kaph', sans-serif; font-size: clamp(0.9rem, 1.8vw, 1.15rem); opacity: 0.7; font-weight: 400; margin-bottom: 40px; line-height: 1.6; }
+.steam-link { display: inline-block; pointer-events: all; transition: transform 0.3s ease, opacity 0.3s ease; }
+.steam-link:hover { transform: scale(1.04); opacity: 0.9; }
+.steam-badge { max-width: 280px; width: 100%; height: auto; display: block; border-radius: 4px; }
+.copyright { position: fixed; bottom: 12px; right: 20px; font-size: 11px; opacity: 0.35; z-index: 20; font-weight: 400; letter-spacing: 0.5px; font-family: 'Kaph', sans-serif; }
+
+#loader { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--dark); z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 1s ease, visibility 1s ease; }
+#loader.hidden { opacity: 0; visibility: hidden; }
+#loader-title { font-family: 'Kaph', sans-serif; font-size: 2rem; font-weight: 400; letter-spacing: 0.3em; margin-bottom: 40px; color: var(--cream); }
+#loader-bar { width: 180px; height: 1px; background: rgba(245, 240, 232, 0.1); position: relative; overflow: hidden; }
+#loader-bar::after { content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%; background: var(--gold); animation: loaderSlide 1.5s ease-in-out infinite; }
+@keyframes loaderSlide { 0% { left: -100%; } 50% { left: 100%; } 100% { left: 100%; } }
+#loader-text { margin-top: 20px; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; opacity: 0.4; font-weight: 400; font-family: 'Kaph', sans-serif; }
+
+@media (max-width: 768px) {
+    .title-section, .story-section { padding: 0 6vw; }
+    .title-content { text-align: center; }
+    .story-title { font-size: clamp(2.8rem, 13vw, 6rem); line-height: 1.04; column-gap: 0.24em; }
+    .story-title .char { min-width: 0; margin-right: 0; }
+    .story-content { grid-template-columns: 1fr; gap: 24px; text-align: center; justify-items: center; }
+    .story-section.left, .story-section.right { justify-content: center; }
+    .story-section.right .text-block { text-align: center; }
+    .story-section.left .story-overline, .story-section.right .story-overline { justify-content: center; }
+    .story-divider { margin: 20px auto; }
+    .end-content { padding: 30px; }
+    .copyright { bottom: 8px; right: 12px; font-size: 10px; }
+    .steam-badge { max-width: 220px; }
+}
+</style>
+<base target="_blank">
+</head>
+<body>
+
+<div id="loader"><div id="loader-title">THE LOOP</div><div id="loader-bar"></div><div id="loader-text">Loading video...</div></div>
+
+<div id="video-container">
+<iframe id="yt-player" title="Background video" referrerpolicy="no-referrer-when-downgrade" allow="autoplay; encrypted-media; picture-in-picture" frameborder="0"></iframe>
+</div>
+
+<div id="vignette"></div>
+<div id="grain"></div>
+
+<div id="glitch-overlay">
+    <div class="glitch-rgb"></div>
+    <div class="scan-bars"></div>
+    <div class="glitch-flash"></div>
+    <div class="noise-static"></div>
+    <div class="tear-line"></div>
+    <div class="tear-line"></div>
+    <div class="tear-line"></div>
+    <div class="tear-line"></div>
+    <div class="glitch-vignette"></div>
+</div>
+
+<div id="white-flash"></div>
+
+<div id="section-nav"></div>
+
+<div id="scroll-spacer">
+<div class="snap-anchor" data-index="0"></div>
+<div class="snap-anchor" data-index="1"></div>
+<div class="snap-anchor" data-index="2"></div>
+<div class="snap-anchor" data-index="3"></div>
+<div class="snap-anchor" data-index="4"></div>
+<div class="snap-anchor" data-index="5"></div>
+<div class="snap-anchor" data-index="6"></div>
+<div class="snap-anchor" data-index="7"></div>
+<div class="snap-anchor" data-index="8"></div>
+<div class="snap-anchor" data-index="9"></div>
+<div class="snap-anchor" data-index="10"></div>
+<div class="snap-anchor" data-index="11"></div>
+</div>
+
+<div id="title-layer">
+<div class="title-section left" style="top:22%">
+  <div class="title-content">
+    <h2 class="story-title">You were only passing through.</h2>
+  </div>
+</div>
+<div class="title-section right" style="top:22%">
+  <div class="title-content">
+    <h2 class="story-title">Something is wrong here.</h2>
+  </div>
+</div>
+<div class="title-section center" style="top:22%">
+  <div class="title-content">
+    <h2 class="story-title">So you leave. Or try to.</h2>
+  </div>
+</div>
+<div class="title-section left" style="top:22%">
+  <div class="title-content">
+    <h2 class="story-title">And there it is. The town.</h2>
+  </div>
+</div>
+<div class="title-section right" style="top:22%">
+  <div class="title-content">
+    <h2 class="story-title">Others are trapped here too.</h2>
+  </div>
+</div>
+<div class="title-section center" style="top:22%">
+  <div class="title-content">
+    <h2 class="story-title">You cannot solve it alone.</h2>
+  </div>
+</div>
+<div class="title-section left" style="top:22%">
+  <div class="title-content">
+    <h2 class="story-title">There has to be a way out.</h2>
+  </div>
+</div>
+<div class="title-section right" style="top:22%">
+  <div class="title-content">
+    <h2 class="story-title">Then the fog starts to spread.</h2>
+  </div>
+</div>
+<div class="title-section center" style="top:22%">
+  <div class="title-content">
+    <h2 class="story-title">The town is hiding something.</h2>
+  </div>
+</div>
+<div class="title-section left" style="top:22%">
+  <div class="title-content">
+    <h2 class="story-title">Every answer creates another question.</h2>
+  </div>
+</div>
+<div class="title-section right" style="top:22%">
+  <div class="title-content">
+    <h2 class="story-title">You finally find the road.</h2>
+  </div>
+</div>
+</div>
+
+<div id="ui-layer">
+
+<div class="story-section left" style="top:22%">
+  <div class="story-content">
+    <div class="text-block">
+      <div class="story-overline">The Road In</div>
+      <div class="story-divider"></div>
+      <p class="story-body">There was nothing unusual about the road. Just trees, dust, and a town ahead that you do not remember seeing on the map.</p>
+    </div>
+  </div>
+</div>
+
+<div class="story-section right" style="top:22%">
+  <div class="story-content">
+    <div class="text-block">
+      <div class="story-overline">The Town</div>
+      <div class="story-divider"></div>
+      <p class="story-body">The streets are empty. The same houses line the road. Everything feels strangely familiar, even though you have never been here before.</p>
+    </div>
+  </div>
+</div>
+
+<div class="story-section center" style="top:22%">
+  <div class="story-content">
+    <div class="text-block">
+      <div class="story-overline">The Road Out</div>
+      <div class="story-divider"></div>
+      <p class="story-body">You follow the road out of town. You keep driving. The houses disappear behind you. Then, somewhere ahead...</p>
+    </div>
+  </div>
+</div>
+
+<div class="story-section left" style="top:22%">
+  <div class="story-content">
+    <div class="text-block">
+      <div class="story-overline">The Return</div>
+      <div class="story-divider"></div>
+      <p class="story-body">The same gas station. The same houses. The same road. You came in from the other side. You do not remember turning around.</p>
+    </div>
+  </div>
+</div>
+
+<div class="story-section right" style="top:22%">
+  <div class="story-content">
+    <div class="text-block">
+      <div class="story-overline">The Strangers</div>
+      <div class="story-divider"></div>
+      <p class="story-body">You are not the first to get stuck. Others have found their way into the town, only to discover that the road home no longer exists.</p>
+    </div>
+  </div>
+</div>
+
+<div class="story-section center" style="top:22%">
+  <div class="story-content">
+    <div class="text-block">
+      <div class="story-overline">Survival</div>
+      <div class="story-divider"></div>
+      <p class="story-body">Search together. Split up when you have to. Share what you find. In a place like this, you need people you can trust.</p>
+    </div>
+  </div>
+</div>
+
+<div class="story-section left" style="top:22%">
+  <div class="story-content">
+    <div class="text-block">
+      <div class="story-overline">The Search</div>
+      <div class="story-divider"></div>
+      <p class="story-body">Every road leads back. Every attempt ends the same way. So you search the town, looking for anything that might explain what is happening.</p>
+    </div>
+  </div>
+</div>
+
+<div class="story-section right" style="top:22%">
+  <div class="story-content">
+    <div class="text-block">
+      <div class="story-overline">The Fog</div>
+      <div class="story-divider"></div>
+      <p class="story-body">It rolls through the streets and swallows the roads beyond. You cannot see what lies ahead. You cannot see how far it reaches. And you do not know what is waiting inside it.</p>
+    </div>
+  </div>
+</div>
+
+<div class="story-section center" style="top:22%">
+  <div class="story-content">
+    <div class="text-block">
+      <div class="story-overline">The Truth</div>
+      <div class="story-divider"></div>
+      <p class="story-body">The loop is not an accident. The fog is not either. Somewhere in this town is the answer. You just have to find it before the town finds you.</p>
+    </div>
+  </div>
+</div>
+
+<div class="story-section left" style="top:22%">
+  <div class="story-content">
+    <div class="text-block">
+      <div class="story-overline">The Search</div>
+      <div class="story-divider"></div>
+      <p class="story-body">The clues begin to connect. Old stories. Forgotten places. People who disappeared. The town is not just keeping you here. It may be hiding something.</p>
+    </div>
+  </div>
+</div>
+
+<div class="story-section right" style="top:22%">
+  <div class="story-content">
+    <div class="text-block">
+      <div class="story-overline">The Exit</div>
+      <div class="story-divider"></div>
+      <p class="story-body">The road looks different this time. The trees thin out. The town disappears behind you. For the first time, there is nothing ahead but open road.</p>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<div id="scroll-hint"><span>Scroll to continue</span><div class="mouse-icon"></div></div>
+
+<div id="progress-track"><div id="progress-fill"></div></div>
+
+<div id="end-section">
+<div class="end-content">
+<h2 class="end-title">THE LOOP</h2>
+<p class="end-subtitle">A cooperative adventure for 2 to 4 players.<br>Trapped in a town that does not exist.<br>Escape together, or not at all.</p>
+<a href="https://store.steampowered.com" target="_blank" class="steam-link">
+<img src="data:image/png;base64,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" alt="Get it on Steam" class="steam-badge">
+</a>
+</div>
+</div>
+
+<div class="copyright">THE LOOP</div>
+
+<script>
+/*
+ * THE LOOP
+ * 100% client-side. No Python, server, API backend or build step required.
+ *
+ * YouTube IFrame API is used only for the background video.
+ */
+var _appInit = null;
+var player = null;
+
+(function loadYouTubeAPI() {
+    var tag = document.createElement('script');
+    tag.src = 'https://www.youtube.com/iframe_api';
+    var firstScriptTag = document.getElementsByTagName('script')[0];
+    firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+})();
+
+window.onYouTubeIframeAPIReady = function () {
+    const iframe = document.getElementById('yt-player');
+    const isHttp = window.location.protocol === 'http:' || window.location.protocol === 'https:';
+    const origin = isHttp ? window.location.origin : '';
+
+    // Build the iframe ourselves so the browser has an explicit referrer policy.
+    // YouTube error 153 is caused by a missing HTTP Referer/client identity.
+    const params = new URLSearchParams({
+        autoplay: '1',
+        mute: '1',
+        controls: '0',
+        disablekb: '1',
+        loop: '1',
+        playlist: 'iZsld67VAzE',
+        playsinline: '1',
+        rel: '0',
+        modestbranding: '1',
+        iv_load_policy: '3',
+        fs: '0',
+        enablejsapi: '1'
+    });
+    if (origin) params.set('origin', origin);
+
+    iframe.src = 'https://www.youtube.com/embed/iZsld67VAzE?' + params.toString();
+    iframe.referrerPolicy = 'no-referrer-when-downgrade';
+
+    player = new YT.Player(iframe, {
+        events: {
+            onReady: onPlayerReady,
+            onStateChange: onPlayerStateChange,
+            onError: onPlayerError
+        }
+    });
+};
+function onPlayerReady(event) {
+    // YouTube now chooses playback quality adaptively; the old quality
+    // forcing API is deprecated and no longer guarantees 4K.
+    try {
+        event.target.setPlaybackRate(1);
+        event.target.mute();
+    } catch (error) {
+        console.warn('Could not set initial YouTube quality/rate:', error);
+    }
+
+    if (typeof _appInit === 'function') {
+        setTimeout(_appInit, 150);
+    }
+}
+
+function onPlayerStateChange(event) {
+    // If autoplay is blocked, the first user scroll will start playback.
+    if (event.data === YT.PlayerState.PLAYING && typeof _appInit === 'function') {
+        _appInit();
+    }
+}
+
+function onPlayerError(event) {
+    var loaderText = document.getElementById('loader-text');
+    console.error('YouTube player error:', event.data);
+
+    if (event.data === 153) {
+        const protocol = window.location.protocol;
+        const referrer = document.referrer || '(empty)';
+        const origin = window.location.origin || '(none)';
+        if (loaderText) {
+            loaderText.textContent = protocol === 'file:'
+                ? 'YouTube needs this page served over HTTP(S)'
+                : 'YouTube did not receive the page referrer';
+        }
+        console.error(
+            '[THE LOOP] YouTube error 153. URL:', window.location.href,
+            '| protocol:', protocol,
+            '| origin:', origin,
+            '| document.referrer:', referrer,
+            '| This is a YouTube embed/referrer issue, not a video ID issue.'
+        );
+        return;
+    }
+
+    if (loaderText) loaderText.textContent = 'Video failed to load';
+}
+
+(function () {
+    'use strict';
+
+    const loader = document.getElementById('loader');
+    const progressFill = document.getElementById('progress-fill');
+    const scrollHint = document.getElementById('scroll-hint');
+    const endSection = document.getElementById('end-section');
+    const storySections = Array.from(document.querySelectorAll('.story-section'));
+    const titleSections = Array.from(document.querySelectorAll('.title-section'));
+    const glitchOverlay = document.getElementById('glitch-overlay');
+    const whiteFlash = document.getElementById('white-flash');
+    const sectionNav = document.getElementById('section-nav');
+
+    const FPS = 60;
+    const VIDEO_DURATION = 31;
+    const TOTAL_FRAMES = VIDEO_DURATION * FPS;
+    const SECTION_COUNT = 12;
+
+    /*
+     * Explicit section frame map.
+     *
+     * These are intentionally written out instead of calculated at runtime.
+     * Replace any startFrame/endFrame pair later if a particular story beat
+     * needs to line up with a different frame in the video.
+     */
+    const SECTIONS = [
+        { startFrame:    0, endFrame:  154 },
+        { startFrame:  155, endFrame:  309 },
+        { startFrame:  310, endFrame:  464 },
+        { startFrame:  465, endFrame:  619 },
+        { startFrame:  620, endFrame:  774 },
+        { startFrame:  775, endFrame:  929 },
+        { startFrame:  930, endFrame: 1084 },
+        { startFrame: 1085, endFrame: 1239 },
+        { startFrame: 1240, endFrame: 1394 },
+        { startFrame: 1395, endFrame: 1549 },
+        { startFrame: 1550, endFrame: 1704 },
+        { startFrame: 1705, endFrame: 1859 }
+    ];
+
+    const HASH_SLUGS = [
+        'the-road-in', 'the-town', 'the-road-out', 'the-return',
+        'the-strangers', 'survival', 'the-search', 'the-fog',
+        'the-truth', 'every-answer', 'the-exit', 'the-loop'
+    ];
+
+    const navLabels = [
+        'Road In', 'Town', 'Road Out', 'Return', 'Strangers', 'Survival',
+        'Search', 'Fog', 'Truth', 'Answers', 'Exit', 'End'
+    ];
+
+    const GLITCH_DURATION = 1500;
+    const SCROLL_THRESHOLD = 40;
+    const SCROLL_COOLDOWN = 700;
+
+    // Section entrance must finish before the title animation begins.
+    const SECTION_TRANSITION_MS = 800;
+    const TITLE_START_DELAY_MS = 120;
+
+    // Letter reveal speed. Every revealed letter remains visible forever.
+    const TITLE_LETTER_DELAY_MS = 55;
+
+    // Body text starts after the final title character.
+    const BODY_START_GAP_MS = 450;
+    const BODY_WORD_DELAY_MS = 55;
+
+    // Near the end of a section, slow down before stopping.
+    const SLOWDOWN_LEAD_TIME = 0.85;
+    const SLOWDOWN_RATE = 0.5;
+
+    // When entering a section, briefly start slower, then return to normal.
+    const RESUME_SLOW_MS = 550;
+
+    // Used when a user jumps to a section before the video naturally reaches it.
+    const VIDEO_JUMP_FLASH_MS = 140;
+
+    let isReady = false;
+    let currentSection = -1;
+    let scrollLock = false;
+    let accumulatedDelta = 0;
+    let scrollTimeout = null;
+    let glitchTimer = null;
+    let sectionTransitionTimer = null;
+    let resumeRateTimer = null;
+    let animationGeneration = 0;
+    let slowingDown = false;
+    let lastVideoSection = -1;
+
+    const frameToTime = (frame) => frame / FPS;
+    const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+    function shuffle(array) {
+        const result = array.slice();
+        for (let i = result.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [result[i], result[j]] = [result[j], result[i]];
+        }
+        return result;
+    }
+
+    function getVideoTime() {
+        return player && player.getCurrentTime ? player.getCurrentTime() : 0;
+    }
+
+    function getVideoDuration() {
+        return player && player.getDuration ? player.getDuration() : VIDEO_DURATION;
+    }
+
+    function setVideoTime(time) {
+        if (!player || !player.seekTo) return;
+        const duration = getVideoDuration() || VIDEO_DURATION;
+        player.seekTo(clamp(time, 0, Math.max(0, duration - 0.02)), true);
+    }
+
+    function playVideo() {
+        if (player && player.playVideo) player.playVideo();
+    }
+
+    function pauseVideo() {
+        if (player && player.pauseVideo) player.pauseVideo();
+    }
+
+    function setPlaybackRate(rate) {
+        if (player && player.setPlaybackRate) {
+            try {
+                player.setPlaybackRate(rate);
+            } catch (error) {
+                console.warn('Playback-rate change failed:', error);
+            }
+        }
+    }
+
+    function getPlaybackRate() {
+        return player && player.getPlaybackRate ? player.getPlaybackRate() : 1;
+    }
+
+    function isVideoPlaying() {
+        return !!(player && player.getPlayerState &&
+            player.getPlayerState() === 1);
+    }
+
+    function clearAnimationTimers() {
+        animationGeneration++;
+        if (sectionTransitionTimer) {
+            clearTimeout(sectionTransitionTimer);
+            sectionTransitionTimer = null;
+        }
+    }
+
+    function resetSection(index) {
+        const titleSection = titleSections[index];
+        const storySection = storySections[index];
+
+        if (!titleSection || !storySection) return;
+
+        titleSection.dataset.animated = '';
+        storySection.dataset.animated = '';
+
+        titleSection.querySelectorAll('.story-title .char').forEach(char => {
+            char.classList.remove('visible');
+        });
+
+        storySection.querySelectorAll('.story-body .word').forEach(word => {
+            word.classList.remove('visible');
+        });
+    }
+
+    function animateSection(index) {
+        const titleSection = titleSections[index];
+        const storySection = storySections[index];
+
+        if (!titleSection || !storySection) return;
+        if (!titleSection.classList.contains('visible')) return;
+        if (titleSection.dataset.animated === '1') return;
+
+        titleSection.dataset.animated = '1';
+        storySection.dataset.animated = '1';
+
+        const generation = animationGeneration;
+        const chars = Array.from(
+            titleSection.querySelectorAll('.story-title .char')
+        );
+        const words = Array.from(
+            storySection.querySelectorAll('.story-body .word')
+        );
+
+        /*
+         * The DOM order never changes.
+         * Only the order in which .visible is added is randomized.
+         * This is the important part that prevents letters from overlapping.
+         */
+        const charOrder = shuffle(
+            Array.from({ length: chars.length }, (_, i) => i)
+        );
+
+        charOrder.forEach((charIndex, sequence) => {
+            setTimeout(() => {
+                if (generation !== animationGeneration) return;
+                if (currentSection !== index) return;
+                if (!titleSection.classList.contains('visible')) return;
+
+                chars[charIndex].classList.add('visible');
+            }, TITLE_START_DELAY_MS + sequence * TITLE_LETTER_DELAY_MS);
+        });
+
+        const titleDuration =
+            TITLE_START_DELAY_MS +
+            Math.max(0, chars.length - 1) * TITLE_LETTER_DELAY_MS +
+            320;
+
+        words.forEach((word, wordIndex) => {
+            setTimeout(() => {
+                if (generation !== animationGeneration) return;
+                if (currentSection !== index) return;
+                if (!storySection.classList.contains('visible')) return;
+
+                word.classList.add('visible');
+            }, titleDuration + BODY_START_GAP_MS + wordIndex * BODY_WORD_DELAY_MS);
+        });
+    }
+
+    function splitText() {
+        titleSections.forEach(section => {
+            section.querySelectorAll('.story-title').forEach(title => {
+                const text = title.textContent.trim();
+                title.innerHTML = '';
+
+                // Keep each word together, while each letter remains an independent
+                // flex item. This gives us random reveal order without any reflow
+                // or character collision.
+                text.split(/\s+/).forEach((word, wordIndex, words) => {
+                    const wordWrap = document.createElement('span');
+                    wordWrap.className = 'title-word ' +
+                        (wordIndex < 2 ? 'title-word-white' : 'title-word-gold');
+
+                    Array.from(word).forEach(character => {
+                        const span = document.createElement('span');
+                        span.className = 'char';
+                        span.textContent = character;
+                        wordWrap.appendChild(span);
+                    });
+
+                    title.appendChild(wordWrap);
+                });
+            });
+        });
+
+        storySections.forEach(section => {
+            section.querySelectorAll('.story-body').forEach(body => {
+                const text = body.textContent.trim();
+                body.innerHTML = '';
+
+                text.split(/\s+/).forEach((word, index, words) => {
+                    const span = document.createElement('span');
+                    span.className = 'word';
+                    span.textContent = word;
+                    body.appendChild(span);
+
+                    if (index < words.length - 1) {
+                        body.appendChild(document.createTextNode(' '));
+                    }
+                });
+            });
+        });
+    }
+
+    function buildNavigator() {
+        sectionNav.innerHTML = '';
+
+        for (let i = 0; i < SECTION_COUNT; i++) {
+            const dot = document.createElement('div');
+            dot.className = 'nav-dot';
+            dot.dataset.index = i;
+
+            const label = document.createElement('span');
+            label.className = 'nav-label';
+            label.textContent = navLabels[i];
+
+            dot.appendChild(label);
+
+            dot.addEventListener('click', () => {
+                const delta = i - currentSection;
+                if (delta !== 0) scrollToSection(delta);
+            });
+
+            sectionNav.appendChild(dot);
+        }
+    }
+
+    function updateNavigator() {
+        sectionNav.querySelectorAll('.nav-dot').forEach((dot, index) => {
+            dot.classList.toggle('active', index === currentSection);
+        });
+    }
+
+    function updateHash() {
+        const slug = HASH_SLUGS[currentSection] || '';
+        const target = slug ? '#' + slug : '';
+
+        if (window.location.hash !== target) {
+            history.replaceState(
+                null,
+                '',
+                target || window.location.pathname
+            );
+        }
+    }
+
+    function readHash() {
+        const hash = window.location.hash.replace('#', '');
+        const index = HASH_SLUGS.indexOf(hash);
+        return index >= 0 ? index : 0;
+    }
+
+    function showSection(index) {
+        const isContentSection = index < SECTION_COUNT - 1;
+
+        storySections.forEach((section, i) => {
+            const shouldShow = isContentSection && i === index;
+            const wasVisible = section.classList.contains('visible');
+
+            section.classList.toggle('visible', shouldShow);
+
+            if (!shouldShow && wasVisible) {
+                resetSection(i);
+            }
+        });
+
+        titleSections.forEach((section, i) => {
+            const shouldShow = isContentSection && i === index;
+            section.classList.toggle('visible', shouldShow);
+        });
+
+        endSection.classList.toggle(
+            'visible',
+            index === SECTION_COUNT - 1
+        );
+
+        scrollHint.style.opacity = index <= 0 ? '1' : '0';
+
+        progressFill.style.width =
+            (index / (SECTION_COUNT - 1) * 100) + '%';
+
+        updateNavigator();
+        updateHash();
+    }
+
+    function startSectionAnimation(index) {
+        const generation = animationGeneration;
+
+        // Give the section's opacity/position transition time to finish.
+        sectionTransitionTimer = setTimeout(() => {
+            sectionTransitionTimer = null;
+
+            if (generation !== animationGeneration) return;
+            if (index !== currentSection) return;
+
+            animateSection(index);
+        }, SECTION_TRANSITION_MS);
+    }
+
+    function triggerGlitch() {
+        clearTimeout(glitchTimer);
+
+        glitchOverlay.classList.add('active');
+
+        glitchTimer = setTimeout(() => {
+            glitchOverlay.classList.remove('active');
+        }, GLITCH_DURATION);
+    }
+
+    function triggerWhiteFlash(callback, duration = VIDEO_JUMP_FLASH_MS) {
+        whiteFlash.classList.add('flash-in');
+
+        setTimeout(() => {
+            if (callback) callback();
+
+            whiteFlash.classList.remove('flash-in');
+            whiteFlash.classList.add('flash-out');
+
+            setTimeout(() => {
+                whiteFlash.classList.remove('flash-out');
+            }, 350);
+        }, duration);
+    }
+
+    function resetPlaybackRateForResume() {
+        clearTimeout(resumeRateTimer);
+        setPlaybackRate(SLOWDOWN_RATE);
+
+        resumeRateTimer = setTimeout(() => {
+            if (currentSection >= 0) setPlaybackRate(1);
+        }, RESUME_SLOW_MS);
+    }
+
+    function seekToSection(index, direction, firstLoad) {
+        if (!player) return;
+
+        const targetTime = frameToTime(SECTIONS[index].startFrame);
+
+        clearTimeout(resumeRateTimer);
+        slowingDown = false;
+
+        /*
+         * The video is always positioned at the exact start frame of
+         * the section. If the user scrolls faster than playback reaches
+         * the intended point, the old position is discarded immediately.
+         *
+         * The flash masks the seek itself so it reads as a smooth cinematic
+         * transition instead of a visible YouTube seek.
+         */
+        const doSeek = () => {
+            setVideoTime(targetTime);
+
+            if (index === SECTION_COUNT - 1) {
+                setPlaybackRate(1);
+                pauseVideo();
+                return;
+            }
+
+            resetPlaybackRateForResume();
+            playVideo();
+        };
+
+        if (firstLoad) {
+            doSeek();
+        } else if (direction === 'up') {
+            triggerWhiteFlash(doSeek);
+        } else {
+            triggerWhiteFlash(doSeek, VIDEO_JUMP_FLASH_MS);
+        }
+    }
+
+    function changeSection(index, direction) {
+        if (index === currentSection) return;
+
+        const previousSection = currentSection;
+
+        clearAnimationTimers();
+
+        // Invalidate all pending letter/word callbacks from the old section.
+        animationGeneration++;
+
+        if (previousSection >= 0) {
+            resetSection(previousSection);
+        }
+
+        currentSection = index;
+        lastVideoSection = index;
+
+        showSection(index);
+        startSectionAnimation(index);
+
+        if (!isReady || !player) return;
+
+        seekToSection(
+            index,
+            direction,
+            previousSection === -1
+        );
+    }
+
+    function scrollToSection(delta) {
+        if (scrollLock) return;
+
+        const target = clamp(
+            currentSection + delta,
+            0,
+            SECTION_COUNT - 1
+        );
+
+        if (target === currentSection) return;
+
+        scrollLock = true;
+
+        const direction = delta < 0 ? 'up' : 'down';
+
+        changeSection(target, direction);
+
+        window.scrollTo({
+            top: target * window.innerHeight,
+            behavior: 'smooth'
+        });
+
+        setTimeout(() => {
+            scrollLock = false;
+            accumulatedDelta = 0;
+        }, SCROLL_COOLDOWN);
+    }
+
+    function init() {
+        if (isReady) return;
+
+        isReady = true;
+        loader.classList.add('hidden');
+
+        splitText();
+        buildNavigator();
+
+        const hashIndex = readHash();
+        const initialIndex =
+            window.location.hash
+                ? hashIndex
+                : Math.round(window.scrollY / window.innerHeight);
+
+        // Directly establish the first section.
+        currentSection = -1;
+        changeSection(
+            clamp(initialIndex, 0, SECTION_COUNT - 1),
+            'down'
+        );
+
+        requestAnimationFrame(loop);
+    }
+
+    _appInit = init;
+
+    window.addEventListener('wheel', (event) => {
+        if (scrollLock) {
+            event.preventDefault();
+            return;
+        }
+
+        event.preventDefault();
+
+        accumulatedDelta += event.deltaY;
+
+        if (accumulatedDelta > SCROLL_THRESHOLD) {
+            accumulatedDelta = 0;
+            scrollToSection(1);
+        } else if (accumulatedDelta < -SCROLL_THRESHOLD) {
+            accumulatedDelta = 0;
+            scrollToSection(-1);
+        }
+
+        clearTimeout(scrollTimeout);
+
+        scrollTimeout = setTimeout(() => {
+            accumulatedDelta = 0;
+        }, 150);
+    }, { passive: false });
+
+    let touchStartY = 0;
+
+    window.addEventListener('touchstart', (event) => {
+        touchStartY = event.touches[0].clientY;
+    }, { passive: true });
+
+    window.addEventListener('touchend', (event) => {
+        if (scrollLock) return;
+
+        const difference =
+            touchStartY - event.changedTouches[0].clientY;
+
+        if (Math.abs(difference) > 70) {
+            scrollToSection(Math.sign(difference));
+        }
+    }, { passive: true });
+
+    document.addEventListener('keydown', (event) => {
+        if (
+            event.key === 'ArrowDown' ||
+            event.key === ' ' ||
+            event.key === 'PageDown'
+        ) {
+            event.preventDefault();
+            scrollToSection(1);
+        } else if (
+            event.key === 'ArrowUp' ||
+            event.key === 'PageUp'
+        ) {
+            event.preventDefault();
+            scrollToSection(-1);
+        }
+    });
+
+    window.addEventListener('hashchange', () => {
+        const target = readHash();
+
+        if (target !== currentSection && !scrollLock) {
+            scrollToSection(target - currentSection);
+        }
+    });
+
+    function loop() {
+        if (!isReady || !player || currentSection < 0) {
+            requestAnimationFrame(loop);
+            return;
+        }
+
+        const section = SECTIONS[currentSection];
+
+        if (!section) {
+            requestAnimationFrame(loop);
+            return;
+        }
+
+        const currentTime = getVideoTime();
+        const endTime = frameToTime(section.endFrame);
+        const timeRemaining = endTime - currentTime;
+
+        /*
+         * Last part of the section:
+         * 1. slow to 0.5x
+         * 2. reach the exact end frame
+         * 3. pause
+         *
+         * This is driven by the actual video time, not by a JS timer,
+         * so the section remains synchronized with the YouTube player.
+         */
+        if (
+            currentSection < SECTION_COUNT - 1 &&
+            isVideoPlaying() &&
+            timeRemaining <= SLOWDOWN_LEAD_TIME &&
+            timeRemaining > 0.05 &&
+            !slowingDown
+        ) {
+            slowingDown = true;
+            setPlaybackRate(SLOWDOWN_RATE);
+        }
+
+        if (
+            currentSection < SECTION_COUNT &&
+            isVideoPlaying() &&
+            currentTime >= endTime - (1 / FPS)
+        ) {
+            pauseVideo();
+            setVideoTime(endTime);
+            setPlaybackRate(1);
+            slowingDown = false;
+            triggerGlitch();
+        }
+
+        requestAnimationFrame(loop);
+    }
+
+    window.addEventListener('resize', () => {
+        if (currentSection >= 0) {
+            window.scrollTo({
+                top: currentSection * window.innerHeight,
+                behavior: 'auto'
+            });
+        }
+    });
+})();
+</script>
+</body>
+</html>
